@@ -160,7 +160,7 @@ This walks you through a photo each way with an iPhone, watches Wi-Fi for five m
 
 A card with no entry in `drivers.toml` gets the `*` entry, which runs only with `allow_untested = true`. Cards that can inject frames from a monitor interface while connected to Wi-Fi are the likely candidates for shared mode. Most mac80211 drivers can, but how they behave around it varies, which is what `drivers.toml` records. To try other settings, copy the `*` entry to `/etc/owly/drivers.toml` under your driver's name (`basename $(readlink /sys/class/net/<wifi>/device/driver)`) and change it there.
 
-owlyd reads `radio.toml` again when the radio comes out of idle, so config written after it started needs no restart from the release with this change on. On an older release, run `sudo systemctl restart owlyd` after editing the file.
+owlyd reads `/etc/owly/radio.toml` and `/etc/owly/drivers.toml` again for each `owly doctor` and each time the radio comes up, so changes to them need no restart.
 
 ## Modes
 

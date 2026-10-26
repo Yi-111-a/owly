@@ -106,7 +106,7 @@ pub fn find_station(ops: &dyn Ops, settings: &Settings) -> Result<Station, Missi
             return Err(missing(
                 "hardware",
                 format!(
-                    "Owly hasn't been tested on this computer's Wi-Fi ({card}). To try it anyway, set allow_untested = true in /etc/owly/radio.toml, and please report how it goes. Restart owlyd (`sudo systemctl restart owlyd`) if an older release still reports this after that."
+                    "Owly hasn't been tested on this computer's Wi-Fi ({card}). To try it anyway, set allow_untested = true in /etc/owly/radio.toml, and please report how it goes."
                 ),
             ));
         }
@@ -115,7 +115,7 @@ pub fn find_station(ops: &dyn Ops, settings: &Settings) -> Result<Station, Missi
             return Err(missing(
                 "hardware",
                 format!(
-                    "Owly is known not to work on this computer's Wi-Fi ({card}). {why} To try it anyway, set allow_untested = true in /etc/owly/radio.toml. Restart owlyd (`sudo systemctl restart owlyd`) if an older release still reports this after that."
+                    "Owly is known not to work on this computer's Wi-Fi ({card}). {why} To try it anyway, set allow_untested = true in /etc/owly/radio.toml."
                 ),
             ));
         }

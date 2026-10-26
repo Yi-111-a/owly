@@ -131,8 +131,8 @@ pub struct Injection {
     start_awdl: StartAwdl,
     journal: Option<Arc<Mutex<Journal>>>,
     live: Option<Live>,
-    /// Whether the settings came from `/etc/owly/radio.toml`, so the file
-    /// may be read again when the radio is down.
+    /// Whether the settings come from `/etc/owly/radio.toml`, which is then
+    /// read again each time the radio comes up.
     reads_config: bool,
 }
 
@@ -153,15 +153,9 @@ impl Injection {
     /// The backend as `/etc/owly/radio.toml` sets it up, with its run
     /// directory at `run`.
     pub fn from_config(run: RunDir) -> Result<Self, String> {
-        let settings = Config::load(Path::new(CONFIG))?.settings(run)?;
-        Ok(Self::new(Arc::new(System), settings).reads(true))
-    }
-
-    /// Whether the settings come from [`CONFIG`], so they may be read again
-    /// when the radio is down. Only this may call it.
-    fn reads(mut self, reads: bool) -> Self {
-        self.reads_config = reads;
-        self
+        let mut backend = Injection::new(Arc::new(System), load(run)?);
+        backend.reads_config = true;
+        Ok(backend)
     }
 
     /// With AWDL started by `start_awdl`, for testing the setup around it.
@@ -206,6 +200,12 @@ impl Injection {
     async fn start(&mut self) -> Result<Link, Error> {
         if self.live.is_some() {
             return Err(Error::not_now("The radio is already up."));
+        }
+        // The file as it is now, not as it was when owlyd started.
+        if self.reads_config {
+            self.settings = load(self.settings.run_dir.clone()).map_err(|e| {
+                Error::no_radio(format!("Owly's radio settings can't be read: {e}"))
+            })?;
         }
         let run = self.settings.run_dir.clone();
         run.create()
@@ -301,60 +301,21 @@ impl Injection {
 }
 
 impl Injection {
-    /// The settings as `/etc/owly/radio.toml` says now, keeping this
-    /// backend's run directory. `None` when the file doesn't parse, so the
-    /// caller keeps what it has.
-    fn reloaded(&self) -> Option<Settings> {
-        Config::load(Path::new(CONFIG))
-            .ok()?
-            .settings(self.settings.run_dir.clone())
-            .ok()
-    }
-
-    /// Brings the settings back in line with the file, only when the radio
-    /// is down: changes to `/etc/owly/radio.toml` don't wait for a restart.
-    fn refresh(&mut self) {
-        if self.reads_config
-            && self.live.is_none()
-            && let Some(settings) = self.reloaded()
-        {
-            self.settings = settings;
-        }
-    }
-
     /// What the radio can do here and what stands in the way. Needs no root
     /// and changes nothing.
     pub fn probe(&self) -> Capabilities {
-        if self.reads_config
-            && let Some(settings) = self.reloaded()
-        {
-            return crate::probe::capabilities(&*self.ops, &settings);
-        }
         crate::probe::capabilities(&*self.ops, &self.settings)
     }
+}
 
-    /// [`probe`](Self::probe) apart from the backend, which may be busy
-    /// bringing the radio up.
-    pub fn prober(&self) -> impl Fn() -> Capabilities + Send + Sync + 'static {
-        let (ops, settings) = (self.ops.clone(), Arc::new(self.settings.clone()));
-        let reads_config = self.reads_config;
-        move || {
-            let settings = if reads_config {
-                Config::load(Path::new(CONFIG))
-                    .ok()
-                    .and_then(|c| c.settings(settings.run_dir.clone()).ok())
-                    .unwrap_or_else(|| (*settings).clone())
-            } else {
-                (*settings).clone()
-            };
-            crate::probe::capabilities(&*ops, &settings)
-        }
-    }
+/// The settings `/etc/owly/radio.toml` gives, with the run directory at
+/// `run`.
+fn load(run: RunDir) -> Result<Settings, String> {
+    Config::load(Path::new(CONFIG))?.settings(run)
 }
 
 impl Backend for Injection {
     async fn up(&mut self) -> Result<Link, Error> {
-        self.refresh();
         self.start().await
     }
 
